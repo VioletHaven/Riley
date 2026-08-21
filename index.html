@@ -151,6 +151,29 @@ body::before {
 .input-box:focus { border-color:rgba(0,180,255,0.4); }
 .input-box::placeholder { color:var(--muted); }
 .send-btn { width:40px;height:40px;background:linear-gradient(135deg,rgba(0,180,255,0.2),rgba(0,100,180,0.3));border:1px solid rgba(0,180,255,0.4);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+  .mic-btn {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,160,64,0.07);
+    border: 1px solid rgba(255,160,64,0.2);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+  .mic-btn.listening {
+    background: rgba(255,160,64,0.25);
+    border-color: #ffa040;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,160,64,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(255,160,64,0); }
+  }
+    
 .send-btn svg { width:16px;height:16px;fill:var(--cyan); }
 </style>
 </head>
@@ -195,6 +218,7 @@ body::before {
 
 <div class="input-area">
   <textarea class="input-box" id="inputBox" placeholder="Say something…" rows="1"></textarea>
+  <button class="mic-btn" id="micBtn">🎤</button>button>
   <button class="send-btn" id="sendBtn">
     <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
   </button>
@@ -371,7 +395,7 @@ async function send(text) {
     try { localStorage.setItem('riley_api', JSON.stringify(apiHistory)); } catch(e) {}
 
     addMsgEl('assistant', reply);
-
+    speak(reply);
   } catch(e) {
     showTyping(false);
     addMsgEl('assistant', "Umm..don't think the api is working..maybe try resetting it?.");
@@ -403,6 +427,82 @@ function useHint(el) {
 
 // Init
 if (apiKey) initChat();
+
+  // ── Voice Input ──
+let recognition = null;
+let isListening = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = function(event) {
+    const text = event.results[0][0].transcript;
+    inputBox.value = text;
+    stopListening();
+    document.getElementById('sendBtn').click();
+  };
+
+  recognition.onerror = function(event) {
+    console.log('Speech error:', event.error);
+    stopListening();
+  };
+
+  recognition.onend = function() {
+    stopListening();
+  };
+}
+
+function startListening() {
+  if (!recognition) return;
+  isListening = true;
+  document.getElementById('micBtn').classList.add('listening');
+  document.getElementById('micBtn').textContent = '⏹';
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  document.getElementById('micBtn').classList.remove('listening');
+  document.getElementById('micBtn').textContent = '🎤';
+  try { recognition.stop(); } catch(e) {}
+}
+
+document.getElementById('micBtn').addEventListener('click', () => {
+  if (isListening) {
+    stopListening();
+  } else {
+    startListening();
+  }
+});
+// ── Voice Output ──
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.95;
+  utter.pitch = 1.0;
+  utter.volume = 1;
+  
+  // Try to find a female voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => 
+    v.name.includes('Samantha') || 
+    v.name.includes('Google US English') ||
+    v.name.includes('Karen') ||
+    (v.lang === 'en-US' && v.name.toLowerCase().includes('female'))
+  );
+  if (preferred) utter.voice = preferred;
+  
+  window.speechSynthesis.speak(utter);
+}
+
+window.speechSynthesis.onvoiceschanged = function() {
+  // Voices loaded
+};
 </script>
 </body>
 </html>
