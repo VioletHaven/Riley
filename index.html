@@ -6,7 +6,14 @@
   <title>Riley</title>
 </head>  
   <body>
-
+<div id="key-modal">
+  <div id="key-box">
+    <h2>Enter Your API Key</h2>
+    <p>Your Key is saved locally and never sent anywhere except Anthropic.</p>
+    <input type-"password" id="key-input" placeholder="sk-ant-. . .">
+    <button onclick="saveKey()">save</button>
+  </div>
+</div>
     <div id="app" style="display:none">
       <header>
         <span>Riley</span>
@@ -21,6 +28,18 @@
     </div>
 
     <script>
+      function saveKey() {
+        const key = document.getElementById('key-input').value.trim()
+        if (!key) return;
+        localstorage.setItem('riley-api-key', key);
+        document.getElementById('key-modal').style.display = 'none';
+        document.getElementById('app').style.display = 'block'
+      }
+
+      function getKey() {
+        return localStorage.getItem('riley-api-key');
+      }
+      
       function sendMessage() {
         const input = document.getElementById('user-input');
         console.log('sending', input.value);
