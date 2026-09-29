@@ -28,6 +28,34 @@
     </div>
 
     <script>
+      const API_URL = 'https://api.anthropic.com/v1/messages';
+      const MODEL = 'claude-sonnet-4-5';
+
+      async funtion askRiley(userMessage) {
+        const key = getKey();
+        if (!key) return 'No api key found';
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: MODEL.
+              max_tokens:1024,
+            messages: [
+              {role: 'user', content: userMessage }
+              ]
+          })
+        });
+
+        const data = await response.json();
+        return data.content[0].txt;
+      }
+      
       function saveKey() {
         const key = document.getElementById('key-input').value.trim()
         if (!key) return;
@@ -42,8 +70,12 @@
       
       function sendMessage() {
         const input = document.getElementById('user-input');
-        console.log('sending', input.value);
+        const text = input.value.trim();
+        if (!text) return;
         input.value = '';
+
+        const reply = await askRiley(text);
+        document.getElementById('messages').innerHTML += '<p>' + reply + '</p>';
       }
     </script>
 </body>
