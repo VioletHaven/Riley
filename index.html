@@ -31,7 +31,7 @@
       const API_URL = 'https://api.anthropic.com/v1/messages';
       const MODEL = 'claude-sonnet-4-5';
 
-      async funtion askRiley(userMessage) {
+      async function askRiley(userMessage) {
         const key = getKey();
         if (!key) return 'No api key found';
 
@@ -44,7 +44,7 @@
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
-            model: MODEL.
+            model: MODEL,
               max_tokens:1024,
             messages: [
               {role: 'user', content: userMessage }
@@ -53,7 +53,7 @@
         });
 
         const data = await response.json();
-        return data.content[0].txt;
+        return data.content[0].text;
       }
       
       function saveKey() {
@@ -68,7 +68,7 @@
         return localStorage.getItem('riley-api-key');
       }
       
-      function sendMessage() {
+      async function sendMessage() {
         const input = document.getElementById('user-input');
         const text = input.value.trim();
         if (!text) return;
