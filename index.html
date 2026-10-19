@@ -623,6 +623,23 @@
     /* ============================================================
        UTILITY
     ============================================================ */
+    
+    
+/* MAIN APP — constrain layout to the screen */
+#app {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Keep existing utility styles */
+.hidden {
+    display: none !important;
+}
+
+    
     .hidden { display: none !important; }
     .flex-row { display: flex; gap: 6px; }
     .flex-row .btn { flex: 1; font-size: 11px; }
