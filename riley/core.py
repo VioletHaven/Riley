@@ -109,8 +109,8 @@ class Handler(BaseHTTPRequestHandler):
         if route=="/api/history": return self.send_json(200,{"messages":history(100)})
         if route=="/api/memory": return self.send_json(200,{"memories":memories()})
         if route=="/api/status": return self.send_json(200,{"ok":True,"provider":os.getenv("RILEY_PROVIDER","auto")})
-        if route=="/core":
-            raw=(ROOT/"web"/"index.html").read_bytes()
+        if route in ("/","/index.html","/core"):
+            raw=(ROOT/"index.html").read_bytes()
             self.send_response(200)
             self.send_header("Content-Type","text/html; charset=utf-8")
             self.send_header("Content-Length",str(len(raw)))
@@ -119,8 +119,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404,{"error":"Not found"})
     def do_POST(self):
         try:
-            if self.headers.get("Origin") not in (None,"http://127.0.0.1:8765","http://localhost:8765"):
-                raise ValueError("Invalid origin")
+            origin=self.headers.get("Origin")
+            if origin not in ("http://127.0.0.1:8765","http://localhost:8765"):
+                raise ValueError("Requests must originate from the local Riley interface")
+            if self.headers.get("Host") not in ("127.0.0.1:8765","localhost:8765"):
+                raise ValueError("Invalid host")
             size=int(self.headers.get("Content-Length","0"))
             if not 0<size<=1100000: raise ValueError("Invalid request size")
             data=json.loads(self.rfile.read(size))
@@ -147,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     init()
-    print("Riley Core: http://127.0.0.1:8765/core",flush=True)
+    print("Riley Core: http://127.0.0.1:8765/",flush=True)
     ThreadingHTTPServer(("127.0.0.1",8765),Handler).serve_forever()
 
 if __name__=="__main__": main()
