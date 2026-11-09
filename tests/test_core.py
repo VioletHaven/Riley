@@ -9,8 +9,9 @@ class RileyTests(unittest.TestCase):
         cls.tmp=tempfile.TemporaryDirectory()
         os.environ["RILEY_DATA"]=cls.tmp.name+"/data"
         os.environ["RILEY_WORKSPACE"]=cls.tmp.name+"/workspace"
+        import importlib
         from riley import core
-        cls.core=core
+        cls.core=importlib.reload(core)
         core.init()
     @classmethod
     def tearDownClass(cls):
