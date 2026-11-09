@@ -25,7 +25,12 @@ class RileyTests(unittest.TestCase):
     def test_preview_requires_approval(self):
         self.assertTrue(self.core.write_file("notes/test.txt","hello")["requires_approval"])
         self.assertFalse((self.core.WORKSPACE/"notes/test.txt").exists())
-        self.core.write_file("notes/test.txt","hello",True)
+        preview=self.core.write_file("notes/test.txt","hello")
+        with self.assertRaises(ValueError): self.core.write_file("notes/test.txt","hello",True)
+        with self.assertRaises(ValueError): self.core.write_file("notes/test.txt","changed",True,preview["token"])
+        preview=self.core.write_file("notes/test.txt","hello")
+        self.core.write_file("notes/test.txt","hello",True,preview["token"])
+        with self.assertRaises(ValueError): self.core.write_file("notes/test.txt","hello",True,preview["token"])
         self.assertEqual(self.core.read_file("notes/test.txt"),"hello")
     def test_path_traversal(self):
         for p in ("../secret","/etc/passwd","foo/../../secret",""):
