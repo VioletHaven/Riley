@@ -37,5 +37,5 @@ python -m unittest discover -s tests -v
 - Not yet a packaged native desktop or USB application.
 - Live cloud/local provider behavior and complete UI regression tests still require execution on a supported computer.
 - No email access, arbitrary shell execution, autonomous coding, or self-updating capability.
-- File writing requires confirmation in the separate `/core` prototype UI; the preserved original UI does not yet expose those controls.
+- File writing requires confirmation in the separate `/prototype` prototype UI; the preserved original UI does not yet expose those controls.
 - `web/index.html` remains an isolated prototype for testing file previews and approvals.
