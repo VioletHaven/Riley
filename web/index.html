@@ -5,6 +5,6 @@ function add(role,text){let e=document.createElement('div');e.className='msg';e.
 (async()=>{try{$('status').textContent=JSON.stringify(await api('status'));(await api('history')).messages.forEach(x=>add(x.role,x.content))}catch(e){$('status').textContent=e.message}})();
 $('form').onsubmit=async e=>{e.preventDefault();let m=$('message').value;$('message').value='';add('You',m);try{add('Riley',(await api('chat',{message:m})).reply)}catch(e){add('Error',e.message)}};
 $('read').onclick=async()=>{try{$('content').value=(await api('file/read',{path:$('path').value})).content;$('notice').textContent='Read complete'}catch(e){$('notice').textContent=e.message}};
-$('preview').onclick=async()=>{try{pending={path:$('path').value,content:$('content').value};let p=await api('file/preview',pending);$('notice').textContent='Preview: '+p.preview;$('approve').hidden=false}catch(e){$('notice').textContent=e.message}};
+$('preview').onclick=async()=>{try{pending={path:$('path').value,content:$('content').value};let p=await api('file/preview',pending);pending.token=p.token;$('notice').textContent='Preview: '+p.preview;$('approve').hidden=false}catch(e){$('notice').textContent=e.message}};
 $('approve').onclick=async()=>{if(!pending||pending.path!==$('path').value||pending.content!==$('content').value){$('approve').hidden=true;return}if(!confirm('Write '+pending.path+'?'))return;try{await api('file/write',{...pending,approve:true});$('notice').textContent='Saved';$('approve').hidden=true}catch(e){$('notice').textContent=e.message}};
 </script></body></html>
