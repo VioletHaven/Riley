@@ -16,6 +16,7 @@ WORKSPACE = Path(os.getenv("RILEY_WORKSPACE", str(DATA/"workspace"))).resolve()
 PERSONA = (ROOT/"PERSONA.md").read_text(encoding="utf-8")
 PENDING_WRITES = {}
 PENDING_LOCK = threading.Lock()
+SESSION_SECRET = secrets.token_urlsafe(32)
 
 def init():
     DATA.mkdir(parents=True, exist_ok=True)
@@ -115,6 +116,13 @@ def model_request(messages):
     return data["message"]["content"]
 
 class Handler(BaseHTTPRequestHandler):
+    def authorized(self):
+        import http.cookies
+        cookie=http.cookies.SimpleCookie()
+        try: cookie.load(self.headers.get("Cookie",""))
+        except http.cookies.CookieError: return False
+        value=cookie.get("riley_session")
+        return value is not None and secrets.compare_digest(value.value,SESSION_SECRET)
     def send_json(self,status,data):
         raw=json.dumps(data).encode()
         self.send_response(status)
@@ -125,6 +133,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
     def do_GET(self):
         route=urlparse(self.path).path
+        if route.startswith("/api/") and not self.authorized():
+            return self.send_json(403,{"error":"Open Riley from the local home page first"})
         if route.startswith("/api/") and self.headers.get("Host") not in ("127.0.0.1:8765","localhost:8765"):
             return self.send_json(400,{"error":"Invalid host"})
         if route.startswith("/api/") and self.headers.get("Sec-Fetch-Site") not in (None,"same-origin","none"):
@@ -135,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
         if route=="/prototype":
             raw=(ROOT/"web"/"index.html").read_bytes()
             self.send_response(200)
+            self.send_header("Set-Cookie",f"riley_session={SESSION_SECRET}; HttpOnly; SameSite=Strict; Path=/")
+            self.send_header("Cache-Control","no-store")
             self.send_header("Content-Type","text/html; charset=utf-8")
             self.send_header("Content-Length",str(len(raw)))
             self.end_headers()
@@ -149,6 +161,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404,{"error":"Not found"})
     def do_POST(self):
         try:
+            if not self.authorized(): raise ValueError("Session not authorized; open Riley home page first")
             origin=self.headers.get("Origin")
             if origin not in ("http://127.0.0.1:8765","http://localhost:8765"):
                 raise ValueError("Requests must originate from the local Riley interface")
