@@ -654,9 +654,9 @@
 <div class="modal-overlay" id="key-modal">
   <div class="modal">
     <h2>RILEY SETUP</h2>
-    <p>Enter your Anthropic API key to connect Riley. It's stored only in your browser — never sent anywhere except Anthropic's API.</p>
+    <p>Riley Core runs locally. Start the Python backend, then open http://127.0.0.1:8765/. API keys belong in your computer's environment, never in this browser.</p>
     <input type="password" id="key-input" placeholder="sk-ant-..." autocomplete="off" />
-    <button class="btn" onclick="saveKey()" style="width:100%">CONNECT RILEY</button>
+    <button class="btn" onclick="location.reload()" style="width:100%">RETRY CONNECTION</button>
   </div>
 </div>
 
@@ -870,7 +870,7 @@
 // 1. CONSTANTS & CONFIG
 // ============================================================
 
-const MODEL   = 'claude-sonnet-4-5';
+const MODEL   = 'riley-core';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_API_HISTORY     = 30;  // messages to send to Claude (for cost control)
 const MAX_DISPLAY_HISTORY = 100; // messages to show in UI
@@ -998,21 +998,21 @@ function getKey() {
 // 4. API KEY SETUP
 // ============================================================
 
-function saveKey() {
-  const key = document.getElementById('key-input').value.trim();
-  if (!key) { showToast('Enter a key first'); return; }
-  if (!key.startsWith('sk-')) { showToast("Doesn't look like an API key"); return; }
-  localStorage.setItem('riley_api_key', key);
-  document.getElementById('key-modal').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  initApp();
-}
+function saveKey() { showToast('Configure ANTHROPIC_API_KEY on your local backend.'); }
+function changeKey() { showToast('Riley Core manages model credentials outside the browser.'); }
 
-function changeKey() {
-  localStorage.removeItem('riley_api_key');
-  document.getElementById('key-input').value = '';
-  document.getElementById('key-modal').classList.remove('hidden');
-  document.getElementById('app').classList.add('hidden');
+// ============================================================
+// RILEY CORE CONNECTION
+// ============================================================
+async function coreApi(path, body) {
+  const response = await fetch('/api/' + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: {'content-type':'application/json'},
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Riley Core request failed');
+  return data;
 }
 
 // ============================================================
@@ -1020,7 +1020,7 @@ function changeKey() {
 // ============================================================
 
 function loadMemory() {
-  memory = retrieve('memory', {});
+  memory = retrieve('memory', {}); // Legacy browser data kept for explicit migration.
 }
 
 function saveMemory() {
@@ -1030,6 +1030,7 @@ function saveMemory() {
 function rememberFact(key, value) {
   memory[key] = value;
   saveMemory();
+  coreApi('remember', {key, value}).catch(e => addSystem('Core memory sync failed: ' + e.message));
 }
 
 function clearMemory() {
@@ -1082,52 +1083,10 @@ function clearHistory() {
 // ============================================================
 
 async function askRiley(userMessage) {
-  const key = getKey();
-  if (!key) {
-    changeKey(); // show the modal
-    return null;
-  }
-
-  // Add the user's message to the history we'll send to Claude
-  chatHistory.push({ role: 'user', content: userMessage });
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',  // REQUIRED for browser calls
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT + memoryContext(),  // personality + what Riley knows about Keylan
-        messages: chatHistory.slice(-MAX_API_HISTORY)  // don't send the whole history (cost control)
-      })
-    });
-
-    // fetch() doesn't throw on HTTP errors — need to check manually
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data.content[0].text;
-
-    // Add Riley's response to history so she remembers it next turn
-    chatHistory.push({ role: 'assistant', content: text });
-    saveHistory();
-
-    return text;
-
-  } catch(e) {
-    // Remove the user message we added, since the call failed
-    chatHistory.pop();
-    throw e;
-  }
+  const result = await coreApi('chat', {message:userMessage});
+  chatHistory.push({role:'user',content:userMessage},{role:'assistant',content:result.reply});
+  saveHistory();
+  return result.reply;
 }
 
 // ============================================================
@@ -1926,23 +1885,30 @@ function initApp() {
 // 24. ENTRY POINT
 // ============================================================
 
-window.addEventListener('load', () => {
-  registerSW();
-
-  // Handle Enter in the key modal
-  document.getElementById('key-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') saveKey();
-  });
-
-  // If we already have an API key, skip the modal and boot
-  if (getKey()) {
+window.addEventListener('load', async () => {
+  // No direct browser API key access: the backend handles cloud/local routing.
+  localStorage.removeItem('riley_api_key');
+  try {
+    await coreApi('status');
     document.getElementById('key-modal').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     initApp();
+    // Server-side history and memories persist across browser sessions.
+    const [saved, facts] = await Promise.all([coreApi('history'),coreApi('memory')]);
+    memory = facts.memories || {};
+    chatHistory = saved.messages || [];
+    // Existing local history remains displayed, but server history is authoritative for model context.
+    if (!displayHistory.length && chatHistory.length) {
+      document.getElementById('messages').innerHTML = '';
+      chatHistory.forEach(m => renderMsg(m.role === 'assistant' ? 'riley' : 'you',m.content,false));
+    }
+    setStatus('CORE CONNECTED');
+  } catch(e) {
+    document.getElementById('key-modal').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+    document.querySelector('#key-modal p').textContent = 'Riley Core is not available: ' + e.message + '. Start the local backend and refresh.';
   }
-  // else: the key modal is already visible (default state)
 });
-
 </script>
 </body>
 </html>
