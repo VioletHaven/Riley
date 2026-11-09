@@ -1,0 +1,35 @@
+name: Riley Core validation
+on:
+  push:
+    branches: [feature/riley-core-v0.1]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python syntax
+        run: python -m compileall -q riley tests
+      - name: Python regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Browser script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          for file in ('index.html','web/index.html'):
+              html=Path(file).read_text(encoding='utf-8')
+              scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',html,re.I)
+              if not scripts:
+                  raise SystemExit(f'No inline script in {file}')
+              for n,script in enumerate(scripts):
+                  Path(f'/tmp/riley-{Path(file).stem}-{n}.js').write_text(script)
+          PY
+          for file in /tmp/riley-*.js; do node --check "$file"; done
