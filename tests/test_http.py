@@ -85,5 +85,36 @@ class HttpSmokeTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,"HTTP 401"):
                     c.model_request([{"role":"user","content":"hi"}])
 
+    def test_mock_cloud_success(self):
+        from io import BytesIO
+        c=self.core
+        class Response:
+            def __enter__(self): return BytesIO(b'{"content":[{"type":"text","text":"Hello from cloud"}]}')
+            def __exit__(self,*args): return False
+        with patch.dict(os.environ,{"RILEY_PROVIDER":"cloud","ANTHROPIC_API_KEY":"fake","RILEY_CLOUD_MODEL":"test-model"}):
+            with patch.object(c.urllib.request,"urlopen",return_value=Response()):
+                self.assertEqual(c.model_request([{"role":"user","content":"hello"}]),"Hello from cloud")
+
+    def test_mock_local_success(self):
+        from io import BytesIO
+        c=self.core
+        class Response:
+            def __enter__(self): return BytesIO(b'{"message":{"content":"Hello offline"}}')
+            def __exit__(self,*args): return False
+        with patch.dict(os.environ,{"RILEY_PROVIDER":"local","RILEY_LOCAL_MODEL":"test-model"}):
+            with patch.object(c.urllib.request,"urlopen",return_value=Response()):
+                self.assertEqual(c.model_request([{"role":"user","content":"hello"}]),"Hello offline")
+
+    def test_cloud_network_failure_falls_back_locally(self):
+        from io import BytesIO
+        from urllib.error import URLError
+        c=self.core
+        class Response:
+            def __enter__(self): return BytesIO(b'{"message":{"content":"Offline fallback"}}')
+            def __exit__(self,*args): return False
+        with patch.dict(os.environ,{"RILEY_PROVIDER":"auto","ANTHROPIC_API_KEY":"fake","RILEY_LOCAL_MODEL":"test-model"}):
+            with patch.object(c.urllib.request,"urlopen",side_effect=[URLError("offline"),Response()]):
+                self.assertEqual(c.model_request([{"role":"user","content":"hello"}]),"Offline fallback")
+
 if __name__=="__main__":
     unittest.main()
