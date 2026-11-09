@@ -109,6 +109,13 @@ class Handler(BaseHTTPRequestHandler):
         if route=="/api/history": return self.send_json(200,{"messages":history(100)})
         if route=="/api/memory": return self.send_json(200,{"memories":memories()})
         if route=="/api/status": return self.send_json(200,{"ok":True,"provider":os.getenv("RILEY_PROVIDER","auto")})
+        if route=="/prototype":
+            raw=(ROOT/"web"/"index.html").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type","text/html; charset=utf-8")
+            self.send_header("Content-Length",str(len(raw)))
+            self.end_headers()
+            return self.wfile.write(raw)
         if route in ("/","/index.html","/core"):
             raw=(ROOT/"index.html").read_bytes()
             self.send_response(200)
