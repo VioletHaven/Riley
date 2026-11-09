@@ -2,6 +2,9 @@
 import json
 import os
 import sqlite3
+import secrets
+import time
+import threading
 import urllib.request
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -11,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.getenv("RILEY_DATA", str(Path.home()/".riley"))).resolve()
 WORKSPACE = Path(os.getenv("RILEY_WORKSPACE", str(DATA/"workspace"))).resolve()
 PERSONA = (ROOT/"PERSONA.md").read_text(encoding="utf-8")
+PENDING_WRITES = {}
+PENDING_LOCK = threading.Lock()
 
 def init():
     DATA.mkdir(parents=True, exist_ok=True)
@@ -58,13 +63,27 @@ def read_file(relative):
         raise ValueError("Missing or oversized file")
     return p.read_text(encoding="utf-8")
 
-def write_file(relative,content,approved=False):
+def write_file(relative,content,approved=False,token=None):
     p=safe_path(relative)
-    if not isinstance(content,str) or len(content.encode())>1000000:
+    if not isinstance(content,str) or len(content.encode("utf-8"))>1000000:
         raise ValueError("Oversized file")
     if not approved:
-        return {"requires_approval":True,"path":relative,"preview":content[:2000]}
+        ticket=secrets.token_urlsafe(32)
+        with PENDING_LOCK:
+            now=time.monotonic()
+            for old,(expiry,_,_) in list(PENDING_WRITES.items()):
+                if expiry<now: del PENDING_WRITES[old]
+            PENDING_WRITES[ticket]=(now+120,relative,content)
+        return {"requires_approval":True,"path":relative,"preview":content[:2000],"token":ticket}
+    if not isinstance(token,str): raise ValueError("Valid preview token required")
+    with PENDING_LOCK:
+        saved=PENDING_WRITES.pop(token,None)
+    if saved is None or saved[0]<time.monotonic() or saved[1]!=relative or saved[2]!=content:
+        raise ValueError("Write preview expired or changed")
+    # Recheck path immediately before the approved write.
+    p=safe_path(relative)
     p.parent.mkdir(parents=True,exist_ok=True)
+    if p.is_symlink(): raise ValueError("Symlink targets are not writable")
     p.write_text(content,encoding="utf-8")
     with connect() as db:
         db.execute("INSERT INTO audit(action,target) VALUES (?,?)",("write",relative))
@@ -106,6 +125,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
     def do_GET(self):
         route=urlparse(self.path).path
+        if route.startswith("/api/") and self.headers.get("Host") not in ("127.0.0.1:8765","localhost:8765"):
+            return self.send_json(400,{"error":"Invalid host"})
+        if route.startswith("/api/") and self.headers.get("Sec-Fetch-Site") not in (None,"same-origin","none"):
+            return self.send_json(403,{"error":"Cross-site requests are blocked"})
         if route=="/api/history": return self.send_json(200,{"messages":history(100)})
         if route=="/api/memory": return self.send_json(200,{"memories":memories()})
         if route=="/api/status": return self.send_json(200,{"ok":True,"provider":os.getenv("RILEY_PROVIDER","auto")})
@@ -149,7 +172,7 @@ class Handler(BaseHTTPRequestHandler):
                 result=write_file(data.get("path"),data.get("content"))
             elif route=="/api/file/write":
                 if data.get("approve") is not True: raise ValueError("Approval required")
-                result=write_file(data.get("path"),data.get("content"),True)
+                result=write_file(data.get("path"),data.get("content"),True,data.get("token"))
             else: return self.send_json(404,{"error":"Not found"})
             self.send_json(200,result)
         except (ValueError,UnicodeError,KeyError) as e: self.send_json(400,{"error":str(e)})
