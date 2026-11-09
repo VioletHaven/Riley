@@ -6,6 +6,7 @@ import secrets
 import time
 import threading
 import urllib.request
+import urllib.error
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -43,6 +44,14 @@ def remember(key,value):
         raise ValueError("Invalid memory")
     with connect() as db:
         db.execute("INSERT OR REPLACE INTO memories VALUES (?,?)",(key,value))
+
+def clear_history():
+    with connect() as db:
+        db.execute('DELETE FROM messages')
+
+def clear_memories():
+    with connect() as db:
+        db.execute('DELETE FROM memories')
 
 def add_message(role,content):
     if role not in ("user","assistant") or not isinstance(content,str) or len(content)>50000:
@@ -103,8 +112,10 @@ def model_request(messages):
         try:
             with urllib.request.urlopen(req,timeout=45) as response: data=json.load(response)
             return "".join(x.get("text","") for x in data.get("content",[]) if x.get("type")=="text")
-        except Exception:
-            if mode=="cloud": raise RuntimeError("Cloud provider unavailable")
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"Cloud provider rejected the request (HTTP {e.code}); check credentials, model, and quota") from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if mode=="cloud": raise RuntimeError("Cloud provider unreachable") from None
     model=os.getenv("RILEY_LOCAL_MODEL","")
     if not model: raise RuntimeError("No available model; configure cloud or local")
     base=os.getenv("RILEY_OLLAMA_URL","http://127.0.0.1:11434")
@@ -177,6 +188,10 @@ class Handler(BaseHTTPRequestHandler):
                 answer=model_request(history(29)+[{"role":"user","content":message}])
                 add_message("user",message);add_message("assistant",answer)
                 result={"reply":answer}
+            elif route=="/api/history/clear":
+                clear_history();result={"cleared":True}
+            elif route=="/api/memory/clear":
+                clear_memories();result={"cleared":True}
             elif route=="/api/remember":
                 remember(data.get("key"),data.get("value"));result={"saved":True}
             elif route=="/api/file/read":
