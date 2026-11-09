@@ -1894,7 +1894,7 @@ function initApp() {
 
 window.addEventListener('load', async () => {
   // No direct browser API key access: the backend handles cloud/local routing.
-  localStorage.removeItem('riley_api_key');
+  // Legacy browser key is not used by Riley Core. Leave it untouched for manual migration.
   try {
     await coreApi('status');
     document.getElementById('key-modal').classList.add('hidden');
