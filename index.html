@@ -1034,10 +1034,13 @@ function rememberFact(key, value) {
   coreApi('remember', {key, value}).catch(e => addSystem('Core memory sync failed: ' + e.message));
 }
 
-function clearMemory() {
-  memory = {};
-  saveMemory();
-  addSystem('Memory cleared.');
+async function clearMemory() {
+  try {
+    await coreApi('memory/clear', {});
+    memory = {};
+    saveMemory();
+    addSystem('Memory cleared from Riley Core and this browser.');
+  } catch(e) { addSystem('Memory was NOT cleared: ' + e.message); }
 }
 
 // Build a string from memory to inject into the system prompt
@@ -1071,12 +1074,15 @@ function saveHistory() {
   store('display_history', displayHistory.slice(-MAX_DISPLAY_HISTORY));
 }
 
-function clearHistory() {
-  chatHistory = [];
-  displayHistory = [];
-  saveHistory();
-  document.getElementById('messages').innerHTML = '';
-  addSystem('History cleared.');
+async function clearHistory() {
+  try {
+    await coreApi('history/clear', {});
+    chatHistory = [];
+    displayHistory = [];
+    saveHistory();
+    document.getElementById('messages').innerHTML = '';
+    addSystem('History cleared from Riley Core and this browser.');
+  } catch(e) { addSystem('History was NOT cleared: ' + e.message); }
 }
 
 // ============================================================
@@ -1129,7 +1135,7 @@ async function parseCommand(input) {
       break;
 
     case '/clear':
-      clearHistory();
+      await clearHistory();
       break;
 
     case '/timer': {
