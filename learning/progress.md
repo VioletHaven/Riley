@@ -9,3 +9,5 @@
 Functions and modules; permission scopes; filesystem safety; unit testing; audit logs; proactive suggestions.
 
 Update this log only after discussing completed lessons or challenges. Do not mark a challenge complete without the learner's attempt.
+
+- Bonus challenge completed: correctly predicted `permission = "blocked"` prints `Denied` through the `else` branch. Lesson 01 marked complete.
