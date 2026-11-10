@@ -36,3 +36,16 @@ Existing local server is development-only and requires further security review.
 Use `feature/balanced-autonomy-foundation`; do not push changes to `main` or deploy without review.
 Implement small changes with tests and human-readable notes in `learning/`.
 Before behavior-changing work, confirm test baseline. Live hardware/provider tests remain necessary.
+
+## Updated file permission decisions (user clarification)
+- Read only within explicitly approved workspaces.
+- Write permission can be granted to one file or to a specific folder, with persistent scope when explicitly chosen by the user. A folder grant covers ordinary writes only; it does not imply delete or rename.
+- New folder access must be approved through a trusted UI. Natural-language text alone is not a verified approval.
+- Every delete requires its own fresh, exact-target approval. No standing delete grants.
+- Riley may proactively suggest file or folder names, but renaming requires approval of the exact old and new paths; check collisions.
+- Permissions persist until revoked if the user chooses a standing grant; short-lived one-time approval tokens still expire. The existing five-minute grant prototype does not implement persistent grants.
+- Restrict symlink escapes, special/protected locations, and dangerous file types; record changes and provide backups or undo where possible.
+- An AI suggestion is never an authorization. All mutations must pass a trusted permission gateway.
+
+### Implementation follow-up
+Replace the isolated in-memory exact-file grant prototype with a reviewed persistent grant store, trusted approval workflow, folder-scope enforcement, explicit delete/rename action types, and audit tests. Do not connect the prototype grant method directly to model output.
