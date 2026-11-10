@@ -13,3 +13,5 @@ Update this log only after discussing completed lessons or challenges. Do not ma
 - Bonus challenge completed: correctly predicted `permission = "blocked"` prints `Denied` through the `else` branch. Lesson 01 marked complete.
 
 - Lesson 02 challenge completed: correctly explained how `greet(name)` receives an argument, returns a greeting, stores it in `message`, and prints the result. Clarified that string arguments require quotes (e.g., `greet("Jack")`).
+
+- Lesson 02 follow-up: correctly identified `check_permission("delete")` returns `"needs_approval"`. Proposed permission learning: Riley should ask about unfamiliar requests and remember user-approved scopes to avoid repeated prompts. Design distinction: unknown operations remain denied by the executor; Riley may separately request narrowly scoped permission for supported capabilities, with explicit user approval, expiration, and revocation.
