@@ -1,6 +1,6 @@
 # Challenge 01 — Riley's first permission decision
 
-**Difficulty:** Beginner. **Status:** Not attempted.
+**Difficulty:** Beginner. **Status:** Completed (questions 1–2). Optional extension not yet attempted.
 
 You are designing a *practice-only* permission decision. No live Riley files should be changed.
 
@@ -22,4 +22,4 @@ def decide(permission):
 ## What to learn
 `if`, `elif`, `else`, function arguments, return values, and why unknown permissions are denied.
 
-When ready, explain your answers in chat. You do not need to install anything to attempt this.
+Completed answers: `decide("ask")` returns `"needs_approval"`; `decide("mystery")` returns `"denied"` because the `else` branch handles unknown values. A decision result does not itself perform an action. Optional extension remains available. You do not need to install anything to attempt this.
