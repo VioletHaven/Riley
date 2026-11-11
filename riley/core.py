@@ -10,6 +10,7 @@ import urllib.error
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
+from riley.read_permissions import ReadPermissions
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.getenv("RILEY_DATA", str(Path.home()/".riley"))).resolve()
@@ -17,6 +18,8 @@ WORKSPACE = Path(os.getenv("RILEY_WORKSPACE", str(DATA/"workspace"))).resolve()
 PERSONA = (ROOT/"PERSONA.md").read_text(encoding="utf-8")
 PENDING_WRITES = {}
 PENDING_LOCK = threading.Lock()
+PENDING_READ_GRANTS = {}
+READ_GRANTS_LOCK = threading.Lock()
 SESSION_SECRET = secrets.token_urlsafe(32)
 
 def init():
@@ -66,6 +69,17 @@ def safe_path(relative):
     if p==WORKSPACE or not p.is_relative_to(WORKSPACE):
         raise ValueError("Outside workspace")
     return p
+
+def read_grants():
+    return ReadPermissions(DATA/"read_grants.sqlite3")
+
+def external_read(path):
+    if not read_grants().allows_read(path):
+        raise ValueError("No read grant for this file")
+    p=Path(path)
+    if p.stat().st_size>1000000:
+        raise ValueError("Oversized file")
+    return p.read_text(encoding="utf-8")
 
 def read_file(relative):
     p=safe_path(relative)
@@ -152,6 +166,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(403,{"error":"Cross-site requests are blocked"})
         if route=="/api/history": return self.send_json(200,{"messages":history(100)})
         if route=="/api/memory": return self.send_json(200,{"memories":memories()})
+        if route=="/api/read-grants": return self.send_json(200,{"grants":read_grants().list_grants()})
         if route=="/api/status": return self.send_json(200,{"ok":True,"provider":os.getenv("RILEY_PROVIDER","auto")})
         if route=="/prototype":
             raw=(ROOT/"web"/"index.html").read_bytes()
@@ -196,6 +211,31 @@ class Handler(BaseHTTPRequestHandler):
                 clear_memories();result={"cleared":True}
             elif route=="/api/remember":
                 remember(data.get("key"),data.get("value"));result={"saved":True}
+            elif route=="/api/read-grants/preview":
+                folder=data.get("folder")
+                if not isinstance(folder,str) or not folder or not Path(folder).is_dir():
+                    raise ValueError("Choose an existing folder")
+                canonical=str(Path(folder).resolve(strict=True))
+                ticket=secrets.token_urlsafe(32)
+                with READ_GRANTS_LOCK:
+                    PENDING_READ_GRANTS.clear()
+                    PENDING_READ_GRANTS[ticket]=(time.monotonic()+120,canonical)
+                result={"folder":canonical,"token":ticket,"requires_approval":True}
+            elif route=="/api/read-grants/approve":
+                token=data.get("token")
+                folder=data.get("folder")
+                with READ_GRANTS_LOCK:
+                    saved=PENDING_READ_GRANTS.pop(token,None) if isinstance(token,str) else None
+                if not saved or saved[0]<time.monotonic() or saved[1]!=folder or data.get("approve") is not True:
+                    raise ValueError("Valid folder approval required")
+                grant_id=read_grants().grant_folder(folder,trusted_user_confirmation=True)
+                result={"granted":True,"id":grant_id}
+            elif route=="/api/read-grants/revoke":
+                grant_id=data.get("id")
+                if not isinstance(grant_id,str): raise ValueError("Invalid grant")
+                result={"revoked":read_grants().revoke(grant_id)}
+            elif route=="/api/file/read-external":
+                result={"content":external_read(data.get("path"))}
             elif route=="/api/file/read":
                 result={"content":read_file(data.get("path"))}
             elif route=="/api/file/preview":
