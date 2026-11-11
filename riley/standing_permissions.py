@@ -5,6 +5,7 @@ that method as a callable AI tool. Deletions and renames always require fresh
 approval, independent of standing grants.
 """
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -21,8 +22,14 @@ class StandingPermissions:
                 action TEXT NOT NULL CHECK(action = 'workspace.write')
             )""")
 
+    @contextmanager
     def _connect(self):
-        return sqlite3.connect(self.db_path)
+        db=sqlite3.connect(self.db_path)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     @staticmethod
     def _resolve(workspace, target):
