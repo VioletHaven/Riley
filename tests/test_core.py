@@ -38,7 +38,11 @@ class RileyTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.core.safe_path(p)
     def test_symlink_escape(self):
         target=Path(self.tmp.name)/"outside";target.mkdir()
-        link=self.core.WORKSPACE/"escape";link.symlink_to(target,target_is_directory=True)
+        link=self.core.WORKSPACE/"escape"
+        try:
+            link.symlink_to(target,target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlinks require additional Windows permissions")
         with self.assertRaises(ValueError): self.core.safe_path("escape/private.txt")
     def test_invalid_memory(self):
         with self.assertRaises(ValueError): self.core.remember("","bad")
