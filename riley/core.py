@@ -2,6 +2,7 @@
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
 import secrets
 import time
 import threading
@@ -22,16 +23,25 @@ PENDING_READ_GRANTS = {}
 READ_GRANTS_LOCK = threading.Lock()
 SESSION_SECRET = secrets.token_urlsafe(32)
 
+@contextmanager
+def db_session(path):
+    db=sqlite3.connect(path)
+    try:
+        with db:
+            yield db
+    finally:
+        db.close()
+
 def init():
     DATA.mkdir(parents=True, exist_ok=True)
     WORKSPACE.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DATA/"riley.sqlite3") as db:
+    with db_session(DATA/"riley.sqlite3") as db:
         db.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, role TEXT, content TEXT)")
         db.execute("CREATE TABLE IF NOT EXISTS memories (key TEXT PRIMARY KEY, value TEXT)")
         db.execute("CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, action TEXT, target TEXT)")
 
 def connect():
-    return sqlite3.connect(DATA/"riley.sqlite3")
+    return db_session(DATA/"riley.sqlite3")
 
 def history(limit=30):
     with connect() as db:
