@@ -5,14 +5,24 @@ must verify user approval before calling grant_folder(). Do not expose that
 method to the language model.
 """
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
 
+@contextmanager
+def db_session(path):
+    db=sqlite3.connect(path)
+    try:
+        with db:
+            yield db
+    finally:
+        db.close()
+
 class ReadPermissions:
     def __init__(self, db_path):
         self.db_path = str(db_path)
-        with sqlite3.connect(self.db_path) as db:
+        with db_session(self.db_path) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS read_grants (
                 id TEXT PRIMARY KEY, folder TEXT NOT NULL
             )""")
@@ -26,17 +36,17 @@ class ReadPermissions:
         if not path.is_dir() or path.is_symlink():
             raise ValueError("An existing, non-symlink folder is required")
         grant_id = uuid4().hex
-        with sqlite3.connect(self.db_path) as db:
+        with db_session(self.db_path) as db:
             db.execute("INSERT INTO read_grants VALUES (?,?)", (grant_id, str(path)))
         return grant_id
 
     def list_grants(self):
-        with sqlite3.connect(self.db_path) as db:
+        with db_session(self.db_path) as db:
             return [{"id": row[0], "folder": row[1]}
                     for row in db.execute("SELECT id, folder FROM read_grants ORDER BY rowid")]
 
     def revoke(self, grant_id):
-        with sqlite3.connect(self.db_path) as db:
+        with db_session(self.db_path) as db:
             return db.execute("DELETE FROM read_grants WHERE id=?", (grant_id,)).rowcount > 0
 
     def allows_read(self, target):
